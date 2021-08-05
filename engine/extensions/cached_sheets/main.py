@@ -31,7 +31,7 @@ Setup Instructions:
 
 2) Re-run the autograder on all students. 
 """
-
+from subprocess import PIPE
 import csv
 import datetime
 import glob
@@ -171,11 +171,12 @@ class CachedSheetPlugin():
             is_recent = False
             loop_count = 0
             while not is_recent:
+                print('sleeping...')
                 time.sleep(5)
 
                 # Pull and check time.
                 self.pull_repo()
-                ret = self._git(('show', '-s', '--format=%ct'), capture_output=True, text=True)
+                ret = self._git(('show', '-s', '--format=%ct'), stdout=PIPE, stderr=PIPE, universal_newlines=True)
                 commit_date = datetime.datetime.utcfromtimestamp(float(ret.stdout))
                 is_recent = datetime.datetime.utcnow() - commit_date < datetime.timedelta(minutes=5)
 

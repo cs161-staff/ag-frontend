@@ -48,6 +48,8 @@ BASE_DIR = 'engine/extensions/cached_sheets/'
 SCOPES = ['https://spreadsheets.google.com/feeds',
           'https://www.googleapis.com/auth/drive']
 
+GIT_NAME = 'Gradescope Frontend'
+GIT_EMAIL = 'cs161-staff@berkeley.edu'
 
 class CachedSheetPlugin():
 
@@ -66,24 +68,35 @@ class CachedSheetPlugin():
     def _repo_dir(self) -> str:
         return os.path.join(BASE_DIR, self.repo_name)
 
-    @property
-    def _git_flags(self) -> Tuple[str, ...]:
-        return f'--work-tree={self._repo_dir}', f"--git-dir={os.path.join(self._repo_dir, '.git')}"
+    def _git(self, args, **kwargs) -> subprocess.CompletedProcess:
+        # Default check=True.
+        kwargs.setdefault('check', True)
+
+        # Default git environment variables in env dict.
+        kwargs['env'] = dict({
+            'GIT_AUTHOR_NAME': GIT_NAME,
+            'GIT_AUTHOR_EMAIL': GIT_EMAIL,
+            'GIT_COMMITTER_NAME': GIT_NAME,
+            'GIT_COMMITTER_EMAIL': GIT_EMAIL,
+        }, **kwargs.get('env', {}))
+
+        git_flags = (f'--work-tree={self._repo_dir}', f"--git-dir={os.path.join(self._repo_dir, '.git')}")
+        return subprocess.run(('git', *git_flags, *args), **kwargs)
 
     def pull_repo(self):
         if os.path.exists(os.path.join(self._repo_dir, '.git')):
-            subprocess.run(('git', *self._git_flags, 'fetch'), check=True)
-            subprocess.run(('git', *self._git_flags, 'checkout', '-f', 'origin/master'), check=True)
-            subprocess.run(('git', *self._git_flags, 'clean', '-dfx'), check=True)
+            self._git(('fetch',))
+            self._git(('checkout', '-f', 'origin/master'))
+            self._git(('clean', '-dfx'))
         else:
             shutil.rmtree(self._repo_dir, ignore_errors=True)
-            subprocess.run(('git', 'clone', self.repo_url, self._repo_dir), check=True)
-            subprocess.run(('git', *self._git_flags, 'checkout', '-f', 'origin/master'), check=True)
+            subprocess.run(('git', 'clone', self.repo_url, self._repo_dir))
+            self._git(('checkout', '-f', 'origin/master'))
 
     def push_repo(self):
-        subprocess.run(('git', *self._git_flags, 'add', '-A'), check=True)
-        subprocess.run(('git', *self._git_flags, 'commit', '-m', 'sync'), check=True)
-        subprocess.run(('git', *self._git_flags, 'push'), check=True)
+        self._git(('add', '-A'))
+        self._git(('commit', '-m', 'sync'))
+        self._git(('push',))
 
     def read_sheet(self, sheet_name: str) -> List[Dict[str, Any]]:
         self.pull_repo()

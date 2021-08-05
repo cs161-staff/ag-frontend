@@ -72,7 +72,7 @@ class CachedSheetPlugin():
     def _repo_dir(self) -> str:
         return os.path.join(BASE_DIR, self.repo_name)
 
-    def _git(self, args, *, add_git_flags: bool=False, **kwargs) -> subprocess.CompletedProcess:
+    def _git(self, args, *, add_git_flags: bool=True, **kwargs) -> subprocess.CompletedProcess:
         # Default check=True.
         kwargs.setdefault('check', True)
 

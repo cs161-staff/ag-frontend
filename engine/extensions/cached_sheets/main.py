@@ -33,7 +33,9 @@ Setup Instructions:
 """
 
 import csv
+import datetime
 import os.path
+import secrets
 import shutil
 import subprocess
 from typing import Any, Dict, List, Optional, Tuple
@@ -95,11 +97,11 @@ class CachedSheetPlugin():
 
     def push_repo(self):
         self._git(('add', '-A'))
-        self._git(('commit', '-m', 'sync'))
-        self._git(('push',))
+        self._git(('commit', '--allow-empty', '-m', 'sync'))
+        self._git(('push', 'origin', 'HEAD:master'))
 
     def read_sheet(self, sheet_name: str) -> List[Dict[str, Any]]:
-        self.pull_repo()
+        self.sync()
         with open(BASE_DIR + self.repo_name + '/' + sheet_name + '.csv') as file:
             reader = csv.DictReader(file)
             return list(reader)
@@ -111,19 +113,55 @@ class CachedSheetPlugin():
                 return row
         raise VisibleError("Invalid student ID.")
 
-    def sync(self):
-        """
-        Clone repository
-        Download contents of spreadsheet using gspread
-        Push repository
+    def _try_lock(self) -> bool:
+        """Attempts to acquire the lock by pushing a new, dummy commit to a lock branch on the repo.
+        If we succeed, we have the lock. If we fail, assume that someone else pushed to the lock
+        branch and has the lock. The dummy commit contains a random hex string so that the commit
+        IDs are guaranteed to be unique.
+
+        Yes, this is janky.
         """
         self.pull_repo()
-        gc = gspread.service_account(
-            self.google_service_account, scopes=SCOPES)
-        ss = gc.open_by_url(self.sheet_url)
-        for ws in ss.worksheets():
-            filename = BASE_DIR + self.repo_name + '/' + ws.title + '.csv'
-            with open(filename, 'w') as file:
-                writer = csv.writer(file)
-                writer.writerows(ws.get_all_values())
-        self.push_repo()
+        now = datetime.datetime.utcnow()
+        lock_name = f"lock-{now.strftime('%Y-%m-%d-%H%M')}"
+        self._git(('checkout', '--orphan', lock_name))
+        try:
+            self._git(('reset',))
+            self._git(('commit', '--allow-empty', '-m', f'{lock_name} {secrets.token_hex(16)}'))
+            ret = self._git(('push', 'origin', lock_name), check=False)
+            # The lock is acquired if the git push succeeded.
+            return ret.returncode == 0
+        finally:
+            self._git(('checkout', '-f', 'origin/master'))
+            self._git(('branch', '-D', lock_name))
+
+    def sync(self):
+        """Try acquiring the lock. If we succeed, update the repo cache from the spreadsheet using
+        gspread. If we fail, someone else is updating the repo cache, and we repeatedly pull the
+        repo until we receive a recent commit.
+        """
+        if self._try_lock():
+            # Pull repo.
+            self.pull_repo()
+
+            # Download contents of spreadsheet using gspread.
+            gc = gspread.service_account(
+                self.google_service_account, scopes=SCOPES)
+            ss = gc.open_by_url(self.sheet_url)
+            for ws in ss.worksheets():
+                filename = BASE_DIR + self.repo_name + '/' + ws.title + '.csv'
+                with open(filename, 'w') as file:
+                    writer = csv.writer(file)
+                    writer.writerows(ws.get_all_values())
+
+            # Push repo.
+            self.push_repo()
+        else:
+            # Pull repo until we get a commit in the recent past.
+            is_recent = False
+            while not is_recent:
+                self.pull_repo()
+                ret = self._git(('show', '-s', '--format=%ct'), capture_output=True, text=True)
+                commit_date = datetime.datetime.utcfromtimestamp(float(ret.stdout))
+                print(datetime.datetime.utcnow(), commit_date)
+                is_recent = datetime.datetime.utcnow() - commit_date < datetime.timedelta(minutes=5)

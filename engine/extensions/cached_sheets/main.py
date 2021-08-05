@@ -32,10 +32,14 @@ Setup Instructions:
 2) Re-run the autograder on all students. 
 """
 
-import gspread
-import os
-from typing import List, Dict, Optional, Any
 import csv
+import os.path
+import shutil
+import subprocess
+from typing import Any, Dict, List, Optional, Tuple
+
+import gspread
+
 from engine.error import VisibleError
 
 # BASE_DIR = '/autograder/engine/extensions/cached_sheets/'
@@ -58,15 +62,28 @@ class CachedSheetPlugin():
         if encryption_key:
             raise NotImplementedError("This feature is not implemented yet.")
 
+    @property
+    def _repo_dir(self) -> str:
+        return os.path.join(BASE_DIR, self.repo_name)
+
+    @property
+    def _git_flags(self) -> Tuple[str, ...]:
+        return f'--work-tree={self._repo_dir}', f"--git-dir={os.path.join(self._repo_dir, '.git')}"
+
     def pull_repo(self):
-        if os.path.exists(BASE_DIR + self.repo_name):
-            os.system(f'cd {BASE_DIR + self.repo_name} && git pull')
+        if os.path.exists(os.path.join(self._repo_dir, '.git')):
+            subprocess.run(('git', *self._git_flags, 'fetch'), check=True)
+            subprocess.run(('git', *self._git_flags, 'checkout', '-f', 'origin/master'), check=True)
+            subprocess.run(('git', *self._git_flags, 'clean', '-dfx'), check=True)
         else:
-            os.system(f'cd {BASE_DIR} && git clone {self.repo_url}')
+            shutil.rmtree(self._repo_dir, ignore_errors=True)
+            subprocess.run(('git', 'clone', self.repo_url, self._repo_dir), check=True)
+            subprocess.run(('git', *self._git_flags, 'checkout', '-f', 'origin/master'), check=True)
 
     def push_repo(self):
-        os.system(
-            f'cd {BASE_DIR + self.repo_name} && git add . && git commit -m "sync" && git push')
+        subprocess.run(('git', *self._git_flags, 'add', '-A'), check=True)
+        subprocess.run(('git', *self._git_flags, 'commit', '-m', 'sync'), check=True)
+        subprocess.run(('git', *self._git_flags, 'push'), check=True)
 
     def read_sheet(self, sheet_name: str) -> List[Dict[str, Any]]:
         self.pull_repo()

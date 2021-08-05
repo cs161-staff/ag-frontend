@@ -72,7 +72,7 @@ class CachedSheetPlugin():
     def _repo_dir(self) -> str:
         return os.path.join(BASE_DIR, self.repo_name)
 
-    def _git(self, args, **kwargs) -> subprocess.CompletedProcess:
+    def _git(self, args, *, add_git_flags: bool=False, **kwargs) -> subprocess.CompletedProcess:
         # Default check=True.
         kwargs.setdefault('check', True)
 
@@ -85,7 +85,10 @@ class CachedSheetPlugin():
             'GIT_SSH_COMMAND': "ssh -o 'StrictHostKeyChecking no' -i keys/github/deploy_key",
         }, **kwargs.get('env', {}))
 
-        git_flags = (f'--work-tree={self._repo_dir}', f"--git-dir={os.path.join(self._repo_dir, '.git')}")
+        if add_git_flags:
+            git_flags = (f'--work-tree={self._repo_dir}', f"--git-dir={os.path.join(self._repo_dir, '.git')}")
+        else:
+            git_flags = ()
         return subprocess.run(('git', *git_flags, *args), **kwargs)
 
     def pull_repo(self):
@@ -95,7 +98,7 @@ class CachedSheetPlugin():
             self._git(('clean', '-dfx'))
         else:
             shutil.rmtree(self._repo_dir, ignore_errors=True)
-            subprocess.run(('git', 'clone', self.repo_url, self._repo_dir))
+            self._git(('clone', self.repo_url, self._repo_dir), add_git_flags=False)
             self._git(('checkout', '-f', 'origin/master'))
 
     def push_repo(self):

@@ -34,7 +34,8 @@ Setup Instructions:
 
 import csv
 import datetime
-import os.path
+import glob
+import os
 import secrets
 import shutil
 import subprocess
@@ -45,7 +46,7 @@ import gspread
 from engine.error import VisibleError
 
 # BASE_DIR = '/autograder/engine/extensions/cached_sheets/'
-BASE_DIR = 'engine/extensions/cached_sheets/'
+BASE_DIR = 'work/cached_sheets'
 
 SCOPES = ['https://spreadsheets.google.com/feeds',
           'https://www.googleapis.com/auth/drive']
@@ -58,7 +59,7 @@ class CachedSheetPlugin():
     def __init__(self, repo_url: str, sheet_url: str, encryption_key: Optional[str] = None,
                  google_service_account: str = 'service-account.json') -> None:
         self.repo_url = repo_url
-        self.repo_name = repo_url.split('/')[-1].replace('.git', '').strip()
+        self.repo_name = repo_url.split(':')[-1].split('/')[-1].replace('.git', '').strip()
         self.sheet_url = sheet_url
         self.encryption_key = encryption_key
         self.google_service_account = f'keys/google-service-accounts/{google_service_account}'
@@ -103,8 +104,8 @@ class CachedSheetPlugin():
 
     def read_sheet(self, sheet_name: str) -> List[Dict[str, Any]]:
         self.sync()
-        with open(BASE_DIR + self.repo_name + '/' + sheet_name + '.csv') as file:
-            reader = csv.DictReader(file)
+        with open(os.path.join(self._repo_dir, f'{sheet_name}.csv')) as sheet:
+            reader = csv.DictReader(sheet)
             return list(reader)
 
     def get_student_record(self, sheet_name: str, sid: str, sid_col: str = "Student ID") -> Dict[str, Any]:
@@ -145,12 +146,16 @@ class CachedSheetPlugin():
             # Pull repo.
             self.pull_repo()
 
+            # Clear files.
+            for path in glob.glob(os.path.join(self._repo_dir, '*.csv')):
+                os.remove(path)
+
             # Download contents of spreadsheet using gspread.
             gc = gspread.service_account(
                 self.google_service_account, scopes=SCOPES)
             ss = gc.open_by_url(self.sheet_url)
             for ws in ss.worksheets():
-                filename = BASE_DIR + self.repo_name + '/' + ws.title + '.csv'
+                filename = os.path.join(self._repo_dir, f'{ws.title}.csv')
                 with open(filename, 'w') as file:
                     writer = csv.writer(file)
                     writer.writerows(ws.get_all_values())

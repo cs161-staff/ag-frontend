@@ -6,20 +6,20 @@ Often, we need a secure, private way to display persistent information to studen
 ### Overview
 This repository contains a lightweight Gradescope autograder that is designed to achieve the task described above. To install the base autograder, simply clone the repository & archive all files, and upload them as an autograder for a new Gradescope programming assignment.
 
-### Student UI/UX
-Students will upload a single file named "id.txt" containing their Student ID.
+Consider the following use case: want to display room information to students. 
 
+#### Student UI/UX
+Students will upload a single file named "id.txt" containing their Student ID. Here's what they see:
 
-### Instructor UI/UX
-Consider the example use case above: we want to display room information to students. This data lives in a Google Sheet, so we use the included Google Sheet utilities for this tool (see /engine/utils/sheets.py) to query data by student ID.
+![](assets/ag-example.png)
+
+#### Instructor UI/UX
+This data for this use case lives in a Google Sheet, so we use the included Google Sheet utilities for this tool (see /engine/utils/sheets.py) to query data by student ID.
 
 Here's what the spreadsheet looks like:
 ![](assets/sheet-example.png)
 
-Here's what the Gradescope output looks like:
-![](assets/ag-example.png)
-
-Here's what the code looks like:
+Here's what the code looks like. Notice how simple (and extensible!) it is:
 
 ```python
 def generate(student_id: str, messenger: Messenger) -> None:

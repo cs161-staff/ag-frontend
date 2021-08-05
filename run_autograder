@@ -3,12 +3,3 @@
 cd /autograder/source
 
 python3 generate.py
-
-ssh_config = '/autograder/source/keys/github/config'
-deploy_key = '/autograder/source/keys/github/deploy_key'
-
-if [-f $deploy_key]; then
-    mkdir -p /root/.ssh
-    cp $ssh_config /root/.ssh/config
-    cp $deploy_key /root/.ssh/deploy_key
-fi

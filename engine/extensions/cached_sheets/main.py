@@ -80,6 +80,7 @@ class CachedSheetPlugin():
             'GIT_AUTHOR_EMAIL': GIT_EMAIL,
             'GIT_COMMITTER_NAME': GIT_NAME,
             'GIT_COMMITTER_EMAIL': GIT_EMAIL,
+            'GIT_SSH_COMMAND': "ssh -o 'StrictHostKeyChecking no' -i keys/github/deploy_key",
         }, **kwargs.get('env', {}))
 
         git_flags = (f'--work-tree={self._repo_dir}', f"--git-dir={os.path.join(self._repo_dir, '.git')}")

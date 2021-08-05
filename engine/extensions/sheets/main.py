@@ -23,17 +23,19 @@ class ResourceExhaustedError(Exception):
     pass
 
 
+CREDENTIALS_DIR = 'keys/google-service-accounts/'
+
+
 class SheetsAPI:
 
     SCOPE = ['https://spreadsheets.google.com/feeds',
              'https://www.googleapis.com/auth/drive']
 
-    def __init__(self, credentials_dir: str) -> None:
-        self.credentials_dir = credentials_dir
+    def __init__(self) -> None:
         self.clients = []
 
     def get_clients(self):
-        for i, cred in enumerate(glob.glob(self.credentials_dir + '*.json')):
+        for i, cred in enumerate(glob.glob(CREDENTIALS_DIR + '*.json')):
             if i <= len(self.clients):
                 self.clients.append(gspread.service_account(filename=cred))
             yield self.clients[i]

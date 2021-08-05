@@ -39,6 +39,7 @@ import os
 import secrets
 import shutil
 import subprocess
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
 import gspread
@@ -165,9 +166,17 @@ class CachedSheetPlugin():
         else:
             # Pull repo until we get a commit in the recent past.
             is_recent = False
+            loop_count = 0
             while not is_recent:
+                time.sleep(5)
+
+                # Pull and check time.
                 self.pull_repo()
                 ret = self._git(('show', '-s', '--format=%ct'), capture_output=True, text=True)
                 commit_date = datetime.datetime.utcfromtimestamp(float(ret.stdout))
-                print(datetime.datetime.utcnow(), commit_date)
                 is_recent = datetime.datetime.utcnow() - commit_date < datetime.timedelta(minutes=5)
+
+                # Increment loop count.
+                loop_count += 1
+                if loop_count > 60:
+                    raise VisibleError('Update failed. Please contact course staff for assistance.')

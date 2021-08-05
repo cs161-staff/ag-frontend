@@ -1,12 +1,12 @@
 WIP Project for a Gradescope Frontend.
 
 ### Motivation
-Often, we need a secure, private way to display persistent information to students based on their Student ID (e.g. room assignments, DSP accommodations, grades, etc.). Some large classes have built out infrastructure to achieve this goal, but for smaller classes, setting up & maintaining this infra requires a significant amount of overhead.
+Often, we need a secure, private way to display persistent information to students based on their Student ID (e.g. exam room assignments, DSP accommodations, grades, etc.). Some large classes have built out infrastructure to achieve this goal, but for smaller classes, setting up & maintaining this infra requires a significant amount of overhead.
 
 ### Overview
 This repository contains a lightweight Gradescope autograder that is designed to achieve the task described above. To install the base autograder, simply clone the repository & archive all files, and upload them as an autograder for a new Gradescope programming assignment.
 
-Consider the following use case: want to display room information to students. 
+Consider the following use case: we want a way to display exam room information to students. 
 
 #### Student UI/UX
 Students will upload a single file named "id.txt" containing their Student ID. Here's what they see:

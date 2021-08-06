@@ -26,10 +26,7 @@ Setup Instructions:
 --------------------------------
 [D] DAILY UPDATES:
 
-1) Re-run the autograder on a dummy student with `id.txt` file set to FORCE_REFRESH. This will
-   trigger a fetch-and-sync procedure, where we copy the Sheet into the GitHub repo.
-
-2) Re-run the autograder on all students. 
+1) Re-run the autograder on all students.
 """
 from subprocess import PIPE
 import csv

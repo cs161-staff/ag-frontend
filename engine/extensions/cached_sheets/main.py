@@ -85,6 +85,7 @@ class CachedSheetPlugin():
             'GIT_SSH_COMMAND': "ssh -o 'StrictHostKeyChecking no' -i keys/github/deploy_key",
         }, **kwargs.get('env', {}))
 
+        git_flags: Tuple[str, ...]
         if add_git_flags:
             git_flags = (f'--work-tree={self._repo_dir}', f"--git-dir={os.path.join(self._repo_dir, '.git')}")
         else:
@@ -119,6 +120,8 @@ class CachedSheetPlugin():
                 return row
         raise VisibleError("Invalid student ID.")
 
+    _LOCK_NAME = 'lock'
+
     def _try_lock(self) -> bool:
         """Attempts to acquire the lock by pushing a new, dummy commit to a lock branch on the repo.
         If we succeed, we have the lock. If we fail, assume that someone else pushed to the lock
@@ -129,17 +132,26 @@ class CachedSheetPlugin():
         """
         self.pull_repo()
         now = datetime.datetime.utcnow()
-        lock_name = f"lock-{now.strftime('%Y-%m-%d-%H%M')}"
-        self._git(('checkout', '--orphan', lock_name))
+        self._git(('checkout', '--orphan', CachedSheetPlugin._LOCK_NAME))
         try:
             self._git(('reset',))
-            self._git(('commit', '--allow-empty', '-m', f'{lock_name} {secrets.token_hex(16)}'))
-            ret = self._git(('push', 'origin', lock_name), check=False)
+            self._git(('commit', '--allow-empty', '-m', f'Lock {secrets.token_hex(16)}'))
+            ret = self._git(('push', 'origin', CachedSheetPlugin._LOCK_NAME), check=False)
             # The lock is acquired if the git push succeeded.
             return ret.returncode == 0
         finally:
             self._git(('checkout', '-f', 'origin/master'))
-            self._git(('branch', '-D', lock_name))
+            self._git(('branch', '-D', CachedSheetPlugin._LOCK_NAME))
+
+    def _release_lock(self) -> None:
+        """Releases the lock by deleting the lock branch."""
+        self._git(('push', 'origin', f':{CachedSheetPlugin._LOCK_NAME}'))
+
+    def _repo_is_fresh(self) -> bool:
+        """Returns True if the repo is fresh (updated within 5 minutes) and False otherwise."""
+        ret = self._git(('show', '-s', '--format=%ct'), stdout=PIPE, stderr=PIPE, universal_newlines=True)
+        commit_date = datetime.datetime.utcfromtimestamp(float(ret.stdout))
+        return datetime.datetime.utcnow() - commit_date < datetime.timedelta(minutes=5)
 
     def sync(self):
         """Try acquiring the lock. If we succeed, update the repo cache from the spreadsheet using
@@ -147,38 +159,45 @@ class CachedSheetPlugin():
         repo until we receive a recent commit.
         """
         if self._try_lock():
-            # Pull repo.
-            self.pull_repo()
+            try:
+                print('Acquired the lock')
+                if self._repo_is_fresh():
+                    print('Repo is fresh; doing nothing')
+                else:
+                    print('Repo is stale; updating...')
+                    # Pull repo.
+                    self.pull_repo()
 
-            # Clear files.
-            for path in glob.glob(os.path.join(self._repo_dir, '*.csv')):
-                os.remove(path)
+                    # Clear files.
+                    for path in glob.glob(os.path.join(self._repo_dir, '*.csv')):
+                        os.remove(path)
 
-            # Download contents of spreadsheet using gspread.
-            gc = gspread.service_account(
-                self.google_service_account, scopes=SCOPES)
-            ss = gc.open_by_url(self.sheet_url)
-            for ws in ss.worksheets():
-                filename = os.path.join(self._repo_dir, f'{ws.title}.csv')
-                with open(filename, 'w') as file:
-                    writer = csv.writer(file)
-                    writer.writerows(ws.get_all_values())
+                    # Download contents of spreadsheet using gspread.
+                    gc = gspread.service_account(
+                        self.google_service_account, scopes=SCOPES)
+                    ss = gc.open_by_url(self.sheet_url)
+                    for ws in ss.worksheets():
+                        filename = os.path.join(self._repo_dir, f'{ws.title}.csv')
+                        with open(filename, 'w') as file:
+                            writer = csv.writer(file)
+                            writer.writerows(ws.get_all_values())
 
-            # Push repo.
-            self.push_repo()
+                    # Push repo.
+                    self.push_repo()
+            finally:
+                self._release_lock()
         else:
+            print('Lock is acquired by someone else')
             # Pull repo until we get a commit in the recent past.
             is_recent = False
             loop_count = 0
             while not is_recent:
-                print('sleeping...')
+                print('Repo is still stale; sleeping...')
                 time.sleep(5)
 
                 # Pull and check time.
                 self.pull_repo()
-                ret = self._git(('show', '-s', '--format=%ct'), stdout=PIPE, stderr=PIPE, universal_newlines=True)
-                commit_date = datetime.datetime.utcfromtimestamp(float(ret.stdout))
-                is_recent = datetime.datetime.utcnow() - commit_date < datetime.timedelta(minutes=5)
+                is_recent = self._repo_is_fresh()
 
                 # Increment loop count.
                 loop_count += 1

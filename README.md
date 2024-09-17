@@ -1,5 +1,9 @@
 WIP Project for a Gradescope Frontend.
 
+As of Sep 2024, this repo works for displaying Google Sheets data in a Gradescope autograder. (The `cached_sheets` feature is untested at the moment.)
+
+[Here's some extra documentation for setting up the Google Sheets authentication if it helps.](https://docs.google.com/document/d/1Qi6SXin7vmHRc62UWIgUSd00r6ADiEaWo6Nki8Pf7Pg)
+
 ### Motivation
 Often, we need a secure, private way to display persistent information to students based on their Student ID (e.g. exam room assignments, DSP accommodations, grades, etc.). Some large classes have built out infrastructure to achieve this goal, but for smaller classes, setting up & maintaining this infra requires a significant amount of overhead.
 

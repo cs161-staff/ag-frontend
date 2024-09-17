@@ -10,7 +10,8 @@ def generate(student_id: str, messenger: Messenger) -> None:
     record = fetch_student_record(
         student_id=student_id,
         spreadsheet_url="https://docs.google.com/spreadsheets/d/1tJjglHchD7gVfGGgCeG8KRcNnHV-GbvibHP3MlxCXQc/edit#gid=0",
-        worksheet_index=0
+        worksheet_index=0,
+        credentials_dir='/autograder/source/keys/google-service-accounts/'
     )
 
     rows = [['Row Number', record['Row']],
